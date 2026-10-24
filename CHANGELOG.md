@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The whatsapp-web.js engine runs on Puppeteer 25.16.0, above the 24.38.0 that whatsapp-web.js itself pins; a package.json `overrides` entry keeps the two on the same build. This clears the zod memory-exhaustion advisory (GHSA-mrhx-c7xc-m3w5) that chromium-bidi carried under Puppeteer 24. Puppeteer 25 removed `Browser.isConnected()`, which whatsapp-web.js calls in `destroy()` and `logout()`, so a new install-time patch, `scripts/patch-wwebjs-browser-connected.js`, moves both calls to the `connected` getter: stopping a session still closes its Chromium and logout no longer rejects after signing out. The amd64 image moves its Chrome for Testing pin to the build this Puppeteer is written against (see Dependencies and Upgrade notes).
 - Baileys `listMessage`, `buttonsResponseMessage`, `templateButtonReplyMessage` and `listResponseMessage` now classify as `type: "text"` (they previously fell through to `unknown`). Consumers filtering on `type` will see those shapes as text. Thanks @gabrielmmoraes1999.
 - The PostgreSQL data connection is pinned to UTC: parameters bind as UTC, naive timestamps read back as UTC, every pooled connection sets its session `TimeZone`, and boot fails when the effective zone is not UTC year round.
 - Credentials on a `socks4://` session proxy are reported at session start as unauthenticatable: SOCKS4 sends the user name as the connect request's user id and drops the password.
@@ -94,8 +95,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Dependencies
 
 - `socks` (^2.8.7) is now a direct dependency: the undici dispatcher that routes a caller-supplied URL fetch through a session's SOCKS proxy speaks the protocol itself, since undici ships no SOCKS4 transport and its experimental SOCKS5 agent hands the proxy percent-encoded credentials.
+- The amd64 image ships Chrome for Testing 156.0.8078.47 instead of 153.0.8010.36: the build puppeteer-core 25.16.0 is written against and the current Stable, picking up the browser security fixes released since (the arm64 image uses the Debian chromium package).
 
 ### Upgrade notes (behavior changes)
+
+- whatsapp-web.js: back up `sessions/` before upgrading. The amd64 image moves from Chrome for Testing 153 to 156, so every amd64 rollback to 0.23.5 or earlier crosses a browser major: an older Chrome deletes the IndexedDB a newer one opened, which deletes the stored WhatsApp logins unless `sessions/` is restored from that backup, and a session first paired after the upgrade must be paired again (see `docs/11-operational-runbooks.md`). Baileys sessions are unaffected; the arm64 image runs the chromium Debian ships at build time, whose major can differ between releases.
 
 - A repeat ingress delivery is no longer distinguishable by its response. A route with no declared `response` answers `202 accepted` where it answered `200 duplicate`, and a route with a declared ack answers that ack, including a non-2xx one, so a provider retrying such a route no longer stops after the first retry. The `ingress_events` dedup row remains the record of which deliveries were repeats.
 - A client that honours `Retry-After` now sees one on every rate-limit `429`, where before it saw only the suffixed `Retry-After-<window>` and typically ignored it. When the `long` window sheds a request that value can be up to an hour, so a client that sleeps for it will now wait rather than retry immediately.

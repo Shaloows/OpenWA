@@ -1,4 +1,5 @@
-import { Callback } from 'puppeteer-core/lib/cjs/puppeteer/common/CallbackRegistry.js';
+import { spawnSync } from 'node:child_process';
+import * as path from 'node:path';
 import { Client } from 'whatsapp-web.js';
 import configuration, { MAX_TIMER_MS } from '../../config/configuration';
 import { validateEnv } from '../../config/env.validation';
@@ -126,19 +127,38 @@ describe('whatsapp-web.js protocol timeout', () => {
      * keep passing while the real string drifted out from under it — the one drift this test is
      * here to catch. Driving the real `Callback` is also what shows the label is the bare CDP
      * method name, with no `Protocol error (...)` prefix for the death pattern to match.
+     *
+     * puppeteer-core is ESM-only since 25.0.0 (its `lib/cjs` tree is gone) and this suite runs under
+     * ts-jest as CommonJS, so `Callback` cannot be imported here. A child Node process imports it
+     * through the package's `internal/*` export and prints the rejection it produces. The message
+     * still comes from the installed library, not from a literal in this file.
      */
-    const puppeteerProtocolTimeoutMessage = async (): Promise<string> => {
-      const callback = new Callback(1, 'Runtime.callFunctionOn', 1);
-      try {
-        await callback.promise;
-      } catch (error) {
-        return error instanceof Error ? error.message : String(error);
+    const puppeteerProtocolTimeoutMessage = (): string => {
+      const probe = [
+        "import { Callback } from 'puppeteer-core/internal/common/CallbackRegistry.js';",
+        "const callback = new Callback(1, 'Runtime.callFunctionOn', 1);",
+        'try {',
+        '  await callback.promise;',
+        "  process.stdout.write('puppeteer-core did not reject on an expired protocolTimeout');",
+        '  process.exitCode = 2;',
+        '} catch (error) {',
+        '  process.stdout.write(error instanceof Error ? error.message : String(error));',
+        '}',
+      ].join('\n');
+      const result = spawnSync(process.execPath, ['--input-type=module', '--eval', probe], {
+        // Bare specifiers in an --eval module resolve from cwd, so run it where node_modules lives.
+        cwd: path.join(__dirname, '..', '..', '..'),
+        encoding: 'utf8',
+      });
+      if (result.error) throw result.error;
+      if (result.status !== 0) {
+        throw new Error(`puppeteer-core probe exited ${result.status}: ${result.stdout}${result.stderr}`);
       }
-      throw new Error('puppeteer-core did not reject on an expired protocolTimeout');
+      return result.stdout;
     };
 
-    it('does not treat a protocol timeout as a dead page', async () => {
-      const message = await puppeteerProtocolTimeoutMessage();
+    it('does not treat a protocol timeout as a dead page', () => {
+      const message = puppeteerProtocolTimeoutMessage();
 
       // Guard the guard: if a bump ever drops the phrase this classifier keys on, fail here rather
       // than silently start reporting slow reads as deaths.

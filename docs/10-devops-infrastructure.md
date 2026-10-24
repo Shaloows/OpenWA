@@ -94,7 +94,7 @@ RUN npm ci --only=production
 # repo's Dockerfile for the mixed multi-arch build.
 # Download Chrome for Testing via Puppeteer and point ENV to it
 RUN mkdir -p /opt/puppeteer && \
-    PUPPETEER_CACHE_DIR=/opt/puppeteer ./node_modules/.bin/puppeteer browsers install 'chrome@153.0.8010.36' && \
+    PUPPETEER_CACHE_DIR=/opt/puppeteer ./node_modules/.bin/puppeteer browsers install 'chrome@156.0.8078.47' && \
     chrome_path=$(find /opt/puppeteer/chrome/linux*/chrome-linux64/chrome | head -n 1) && \
     test -n "$chrome_path" && \
     ln -s "$chrome_path" /usr/local/bin/puppeteer-chrome

@@ -683,7 +683,7 @@ updates:
       - dependency-name: 'better-sqlite3'
         versions: ['>=14.0.0']
       - dependency-name: 'puppeteer'
-        versions: ['>24.38.0']
+        versions: ['>=26.0.0']
       - dependency-name: 'audio-decode'
         versions: ['>=3.0.0']
       - dependency-name: '@types/node'
@@ -694,10 +694,13 @@ updates:
         versions: ['>=3.2.1']
 ```
 
-Majors arrive as their own grouped PR, separate from the minor/patch group. Five ignores freeze a
-major line (TypeScript 7, better-sqlite3 14, audio-decode 3, @types/node 23 and later, NestJS 12)
-and two freeze the line in use (puppeteer above the 24.38.0 pin it shares with whatsapp-web.js,
-tar-stream from 3.2.1). Each ignore's reason and lift condition is the comment above it in
+Majors arrive as their own grouped PR, separate from the minor/patch group. Six ignores freeze a
+major line (TypeScript 7, better-sqlite3 14, puppeteer 26, audio-decode 3, @types/node 23 and
+later, NestJS 12) and one freezes the line in use (tar-stream from 3.2.1). puppeteer runs above the
+24.38.0 that whatsapp-web.js pins: the root dependency is 25.16.0 and the `overrides` entry
+`"puppeteer": "$puppeteer"` holds whatsapp-web.js on the same build, which is what cleared the zod
+advisory chromium-bidi carried under 24; `scripts/patch-wwebjs-browser-connected.js` carries the one
+source change that line needs. Each ignore's reason and lift condition is the comment above it in
 `.github/dependabot.yml`.
 
 ### Security Scanning in CI
